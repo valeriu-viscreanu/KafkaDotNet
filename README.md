@@ -1,8 +1,8 @@
-# .NET App with Kafka in Kubernetes
+# .NET App with Kafka in Kubernetes (Tandem Setup)
 
-This project consists of:
-1. An **ASP.NET Core Web API** application in .NET 8.0 that publishes messages to an Apache Kafka topic via a `/produce` POST endpoint and runs a background worker consuming messages from the same topic.
-2. **Kubernetes manifests** (`k8s/`) to run a single-node Apache Kafka instance (using KRaft mode) and the .NET application inside a Kubernetes cluster.
+This project consists of two separate services running in tandem:
+1. **KafkaProducer** (`src/KafkaProducer`): An ASP.NET Core Web API that exposes a `/produce` POST endpoint to publish messages.
+2. **KafkaConsumer** (`src/KafkaConsumer`): A background .NET worker service that consumes messages from the Kafka topic and prints them to the console logs.
 
 ---
 
@@ -10,26 +10,35 @@ This project consists of:
 
 ```text
 ├── k8s/
-│   ├── kafka.yaml          # Kafka service and deployment in KRaft mode
-│   └── dotnet-app.yaml     # .NET application service and deployment
+│   ├── kafka.yaml          # Kafka service and deployment (KRaft mode)
+│   └── dotnet-app.yaml     # Separate Producer and Consumer deployments
 ├── src/
-│   └── KafkaDotNetApp/
-│       ├── Dockerfile      # Multi-stage container build file
-│       ├── Program.cs      # Minimal Web API and Kafka producer registration
-│       ├── KafkaConsumerWorker.cs  # Background worker consuming Kafka messages
-│       ├── appsettings.json
-│       └── KafkaDotNetApp.csproj
-└── README.md               # This instructions file
+│   ├── KafkaProducer/      # Web API Producer
+│   │   ├── Dockerfile
+│   │   ├── Program.cs
+│   │   └── ...
+│   └── KafkaConsumer/      # Worker Service Consumer
+│       ├── Dockerfile
+│       ├── Program.cs
+│       └── ...
+└── README.md
 ```
 
 ---
 
 ## 1. Local Development (Optional)
 
-If you have a local Kafka broker running on `localhost:9092`, you can run the .NET app locally using:
+You can run both apps locally if you have Kafka running on `localhost:9092`.
 
+In shell 1 (Consumer):
 ```bash
-cd src/KafkaDotNetApp
+cd src/KafkaConsumer
+dotnet run
+```
+
+In shell 2 (Producer):
+```bash
+cd src/KafkaProducer
 dotnet run
 ```
 
@@ -37,90 +46,62 @@ dotnet run
 
 ## 2. Deploying to Kubernetes
 
-Follow these steps to deploy and test the application on Kubernetes (e.g. Docker Desktop Kubernetes, Minikube, or Kind):
-
 ### Step 2.1: Deploy Kafka
-Deploy the lightweight Kafka broker (KRaft mode) using the Bitnami image:
+Deploy the lightweight Kafka broker (KRaft mode):
 
 ```bash
 kubectl apply -f k8s/kafka.yaml
 ```
 
-Check that the Kafka pod is running:
+### Step 2.2: Build the Container Images
+Build the Docker images for both services:
+
 ```bash
-kubectl get pods -l app=kafka
+# Build Producer
+docker build -t kafka-producer-app:latest ./src/KafkaProducer
+
+# Build Consumer
+docker build -t kafka-consumer-app:latest ./src/KafkaConsumer
 ```
 
-### Step 2.2: Build the .NET App Container Image
-Build the Docker container image. 
+*Note: If you are using Minikube, remember to run `minikube docker-env | Invoke-Expression` (or `eval $(minikube docker-env)` on bash) before building, or use `minikube image build`. If using Kind, load them using `kind load docker-image <image_name>:latest`.*
 
-* **For general Docker Desktop K8s**:
-  ```bash
-  docker build -t kafka-dotnet-app:latest ./src/KafkaDotNetApp
-  ```
-
-* **For Minikube** (run inside minikube's Docker daemon so K8s can find it):
-  ```bash
-  # Point shell to Minikube registry
-  minikube docker-env | Invoke-Expression
-  
-  # Build the image
-  docker build -t kafka-dotnet-app:latest ./src/KafkaDotNetApp
-  ```
-
-* **For Kind** (build locally and load it into the cluster):
-  ```bash
-  docker build -t kafka-dotnet-app:latest ./src/KafkaDotNetApp
-  kind load docker-image kafka-dotnet-app:latest
-  ```
-
-### Step 2.3: Deploy the .NET App
-Deploy the .NET Web API container:
+### Step 2.3: Deploy the Apps
+Deploy the producer and consumer:
 
 ```bash
 kubectl apply -f k8s/dotnet-app.yaml
 ```
 
-Check that the .NET app pod is running:
-```bash
-kubectl get pods -l app=dotnet-app
-```
-
 ---
 
-## 3. Verifying and Testing the Application
+## 3. Testing the Tandem Services
 
-### Step 3.1: Stream the .NET Application Logs
-Open a new shell and start streaming the logs of the .NET deployment. This will allow you to watch the background consumer receive messages:
-
-```bash
-kubectl logs deployment/dotnet-app-deployment -f
-```
-
-### Step 3.2: Port Forward to the Web API
-To send a message, expose the .NET App Service port to your localhost:
-
-```bash
-kubectl port-forward svc/dotnet-app-service 8080:80
-```
-
-### Step 3.3: Publish a Message
-Open your browser or run a command (using PowerShell or curl) to hit the `/produce` endpoint:
-
-**Using PowerShell:**
-```powershell
-Invoke-RestMethod -Method Post -Uri "http://localhost:8080/produce?message=Hello+Kafka+from+Kubernetes!"
-```
-
-**Using curl:**
-```bash
-curl -X POST "http://localhost:8080/produce?message=Hello+Kafka+from+Kubernetes\!"
-```
-
-### Expected Output:
-1. The endpoint will return a JSON success message containing the partition and partition offset.
-2. In your running log stream from Step 3.1, you should see the worker outputting:
-   ```text
-   info: KafkaDotNetApp.KafkaConsumerWorker[0]
-         Consumed message: Value='Hello Kafka from Kubernetes!' at Offset=0
+1. **Watch Consumer Logs**:
+   ```bash
+   kubectl logs deployment/dotnet-consumer-deployment -f
    ```
+
+2. **Port Forward to the Producer API**:
+   ```bash
+   kubectl port-forward svc/dotnet-producer-service 8080:80
+   ```
+
+3. **Publish a Message**:
+   Send a POST request to the producer endpoint:
+   
+   *PowerShell*:
+   ```powershell
+   Invoke-RestMethod -Method Post -Uri "http://localhost:8080/produce?message=Hello+Tandem+Kafka!"
+   ```
+   
+   *Curl*:
+   ```bash
+   curl -X POST "http://localhost:8080/produce?message=Hello+Tandem+Kafka\!"
+   ```
+
+You will see the producer return a success response, and the consumer log stream will print:
+```text
+info: KafkaConsumer.KafkaConsumerWorker[0]
+      Consumed message: Value='Hello Tandem Kafka!' at Offset=0
+```

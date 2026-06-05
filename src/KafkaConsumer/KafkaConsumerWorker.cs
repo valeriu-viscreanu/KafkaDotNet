@@ -3,7 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 
-namespace KafkaDotNetApp;
+namespace KafkaConsumer;
 
 public class KafkaConsumerWorker : BackgroundService
 {
@@ -50,8 +50,7 @@ public class KafkaConsumerWorker : BackgroundService
                         var consumeResult = consumer.Consume(stoppingToken);
                         if (consumeResult != null)
                         {
-                            _logger.LogInformation("Consumed message: Value='{Value}' at Offset={Offset}",
-                                consumeResult.Message.Value, consumeResult.Offset);
+                            _logger.LogInformation($"Consumed message: Value={consumeResult.Message.Value} at Offset={consumeResult.Offset} Key={consumeResult.Message.Key}");
                         }
                     }
                     catch (ConsumeException ex)

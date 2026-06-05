@@ -1,5 +1,4 @@
 using Confluent.Kafka;
-using KafkaDotNetApp;
 using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -21,8 +20,7 @@ builder.Services.AddSingleton<IProducer<Null, string>>(sp =>
     return new ProducerBuilder<Null, string>(producerConfig).Build();
 });
 
-// Register the background Kafka consumer worker
-builder.Services.AddHostedService<KafkaConsumerWorker>();
+
 
 var app = builder.Build();
 
@@ -44,7 +42,7 @@ app.MapPost("/produce", async (
 
     try
     {
-        var kafkaMessage = new Message<Null, string> { Value = message };
+        var kafkaMessage = new Message<string, string> {Key = new Guid().ToString(), Value = message };
         var deliveryResult = await producer.ProduceAsync(topic, kafkaMessage);
         producer.Flush(TimeSpan.FromSeconds(5)); // Ensure message is sent before responding
 
