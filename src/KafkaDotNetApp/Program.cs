@@ -46,7 +46,8 @@ app.MapPost("/produce", async (
     {
         var kafkaMessage = new Message<Null, string> { Value = message };
         var deliveryResult = await producer.ProduceAsync(topic, kafkaMessage);
-        
+        producer.Flush(TimeSpan.FromSeconds(5)); // Ensure message is sent before responding
+
         logger.LogInformation("Delivered message to '{Topic}' at offset {Offset}", 
             deliveryResult.TopicPartitionOffset.Topic, deliveryResult.TopicPartitionOffset.Offset);
             
