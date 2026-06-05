@@ -1,0 +1,20 @@
+## Ignore Visual Studio & .NET build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Ignore VS Code
+.vscode/
+
+## Ignore Rider
+.idea/
+
+## OS files
+.DS_Store
+Thumbs.db
