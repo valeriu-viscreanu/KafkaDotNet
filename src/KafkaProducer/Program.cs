@@ -8,7 +8,7 @@ builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
 // Register the Kafka Producer as a Singleton
-builder.Services.AddSingleton<IProducer<Null, string>>(sp =>
+builder.Services.AddSingleton<IProducer<string, string>>(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
     var bootstrapServers = config["Kafka:BootstrapServers"] ?? "localhost:9092";
@@ -17,7 +17,7 @@ builder.Services.AddSingleton<IProducer<Null, string>>(sp =>
         BootstrapServers = bootstrapServers,
         MessageTimeoutMs = 5000 // Fast fail if broker is unreachable
     };
-    return new ProducerBuilder<Null, string>(producerConfig).Build();
+    return new ProducerBuilder<string, string>(producerConfig).Build();
 });
 
 
@@ -28,7 +28,7 @@ app.MapGet("/", () => "Kafka .NET Application is running. Use POST /produce?mess
 
 app.MapPost("/produce", async (
     [FromQuery] string message, 
-    [FromServices] IProducer<Null, string> producer, 
+    [FromServices] IProducer<string, string> producer, 
     [FromServices] IConfiguration config,
     [FromServices] ILogger<Program> logger) =>
 {
@@ -42,7 +42,7 @@ app.MapPost("/produce", async (
 
     try
     {
-        var kafkaMessage = new Message<string, string> {Key = new Guid().ToString(), Value = message };
+        var kafkaMessage = new Message<string, string> { Key = new Guid().ToString(), Value = message, Headers = new Headers(), Timestamp = new Timestamp(DateTime.UtcNow) };
         var deliveryResult = await producer.ProduceAsync(topic, kafkaMessage);
         producer.Flush(TimeSpan.FromSeconds(5)); // Ensure message is sent before responding
 
@@ -58,7 +58,7 @@ app.MapPost("/produce", async (
             Message = message
         });
     }
-    catch (ProduceException<Null, string> ex)
+    catch (ProduceException<string, string> ex)
     {
         logger.LogError(ex, "Failed to deliver message to Kafka");
         return Results.Problem(

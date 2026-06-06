@@ -39,7 +39,7 @@ public class KafkaConsumerWorker : BackgroundService
         {
             try
             {
-                using var consumer = new ConsumerBuilder<Ignore, string>(config).Build();
+                using var consumer = new ConsumerBuilder<string, string>(config).Build();
                 consumer.Subscribe(_topic);
                 _logger.LogInformation("Successfully subscribed to topic: {Topic}", _topic);
 
@@ -50,7 +50,11 @@ public class KafkaConsumerWorker : BackgroundService
                         var consumeResult = consumer.Consume(stoppingToken);
                         if (consumeResult != null)
                         {
-                            _logger.LogInformation($"Consumed message: Value={consumeResult.Message.Value} at Offset={consumeResult.Offset} Key={consumeResult.Message.Key}");
+                            _logger.LogInformation($"""
+                                Consumed message: Value={consumeResult.Message.Value} 
+                                at Offset={consumeResult.Offset} 
+                                Key={consumeResult.Message.Key}""");
+                                
                         }
                     }
                     catch (ConsumeException ex)
